@@ -1,5 +1,6 @@
 # stuck-orders-cli
 Live page: https://aamirtechs.github.io/stuck-orders-cli/
+Use it in your browser: the Pages site above runs the full tool locally, no install needed.
 
 Feed a Shopify orders CSV export to this tool and get the exception queue nobody sees: paid but unfulfilled aging orders, partial fulfilments with leftover items, fulfilled orders with no tracking, and on hold orders ageing invisibly.
 

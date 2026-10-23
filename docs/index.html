@@ -84,8 +84,51 @@ footer .links a{margin:0 10px}
   <h1>stuck-orders-cli</h1>
   <p>Feed it a Shopify orders CSV and get the exception queue nobody sees: paid but unfulfilled aging orders, partial fulfilments with leftover items, fulfilled orders with no tracking, and on-hold orders ageing invisibly.</p>
   <a class="btn" href="https://github.com/aamirtechs/stuck-orders-cli">View source on GitHub</a>
+  <p style="margin-top:22px;font-size:15px;color:#f3d98a">Runs fully in your browser, files never leave your device.</p>
 </header>
 <main class="wrap">
+  <section>
+    <h2>Run it in your browser</h2>
+    <p class="note" style="margin-bottom:16px">Upload a Shopify orders CSV export, set the same options the CLI config accepts, and download the exact files the CLI writes: exceptions.csv and report.md. Nothing is uploaded anywhere.</p>
+    <div class="field">
+      <label for="file">Orders CSV file</label>
+      <input type="file" id="file" accept=".csv,text/csv">
+    </div>
+    <div class="grid">
+      <div class="field">
+        <label for="days">Aging threshold (days)</label>
+        <input type="number" id="days" value="3" min="0" step="1">
+        <div class="hint">Config key: days. Default 3, from examples/config.example.json.</div>
+      </div>
+      <div class="field">
+        <label for="now">Reference time (now)</label>
+        <input type="text" id="now" value="2026-10-20T00:00:00Z">
+        <div class="hint">Config key: now. Clear the field to use the current time, like a CLI run without a config.</div>
+      </div>
+    </div>
+    <div class="field">
+      <label for="keywords">Preorder keywords (comma separated)</label>
+      <input type="text" id="keywords" value="preorder, pre-order, pre order">
+      <div class="hint">Config key: preorderKeywords. Orders whose tags or note contain one of these are excluded.</div>
+    </div>
+    <button class="go" id="run" type="button">Find stuck orders</button>
+    <div id="status" role="status"></div>
+    <div id="results" class="hidden">
+      <p id="summaryLine" style="font-weight:600;margin-top:14px"></p>
+      <div style="overflow-x:auto">
+      <table>
+        <thead><tr><th>Order</th><th>Exception</th><th>Age (days)</th><th>Total</th><th>Priority</th><th>Detail</th></tr></thead>
+        <tbody id="rows"></tbody>
+      </table>
+      </div>
+      <div>
+        <button class="dl" id="dlCsv" type="button">Download exceptions.csv</button>
+        <button class="dl" id="dlReport" type="button">Download report.md</button>
+      </div>
+      <h3 style="margin-top:22px">report.md</h3>
+      <pre class="report" id="report"></pre>
+    </div>
+  </section>
   <section>
     <h2>What it does</h2>
     <div class="grid">
@@ -110,5 +153,74 @@ node src/cli.js examples/orders.csv --config examples/config.example.json --out-
   <p>Built by Amir Hussain, operations manager and founder of AamirTechs.</p>
   <p class="links"><a href="https://aamirtechs.com">AamirTechs: operations, customer support and e-commerce services</a> <a href="https://github.com/aamirtechs">More open source tools</a></p>
 </footer>
+<style>
+.field{margin-bottom:16px}
+.field label{display:block;font-weight:600;font-size:.92rem;margin-bottom:6px}
+.field input[type="text"],.field input[type="number"]{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:9px;font:inherit;background:#fff}
+.field input[type="file"]{width:100%;padding:12px;border:1.5px dashed #b9c6d4;border-radius:9px;background:#fbfcfe}
+.hint{color:var(--muted);font-size:.83rem;margin-top:5px}
+button.go{background:var(--gold);color:#231a00;border:0;font:inherit;font-weight:700;padding:13px 26px;border-radius:10px;cursor:pointer;width:100%;font-size:1.02rem}
+button.go:hover{filter:brightness(1.06)}
+button.dl{background:var(--navy);color:#fff;border:0;font:inherit;font-weight:600;padding:10px 18px;border-radius:9px;cursor:pointer;margin-right:8px;margin-top:12px}
+#status{margin-top:14px;font-weight:600}
+#status.error{color:#b3261e}
+table{border-collapse:collapse;width:100%;background:#fff;border:1px solid var(--line);border-radius:10px;overflow:hidden;margin-top:10px}
+th,td{text-align:left;padding:8px 11px;border-bottom:1px solid var(--line);font-size:.88rem;vertical-align:top}
+th{background:var(--navy);color:#fff}
+pre.report{background:#0e1622;color:#d7e3f2;white-space:pre-wrap;box-shadow:none}
+.hidden{display:none}
+</style>
+<script src="app.js"></script>
+<script>
+(function () {
+  var HEADERS = ['order_id', 'exception_type', 'age_days', 'total', 'created_at', 'financial_status', 'fulfillment_status', 'priority_score', 'detail'];
+  var lastCsv = '', lastReport = '';
+  function download(name, text, type) {
+    var blob = new Blob([text], { type: type || 'text/plain;charset=utf-8' });
+    var a = document.createElement('a');
+    a.href = URL.createObjectURL(blob); a.download = name;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(a.href); }, 4000);
+  }
+  document.getElementById('dlCsv').addEventListener('click', function () { download('exceptions.csv', lastCsv, 'text/csv;charset=utf-8'); });
+  document.getElementById('dlReport').addEventListener('click', function () { download('report.md', lastReport, 'text/markdown;charset=utf-8'); });
+  document.getElementById('run').addEventListener('click', async function () {
+    var status = document.getElementById('status');
+    var results = document.getElementById('results');
+    status.className = ''; status.textContent = ''; results.classList.add('hidden');
+    var file = document.getElementById('file').files[0];
+    if (!file) { status.className = 'error'; status.textContent = 'Choose an orders CSV file first.'; return; }
+    try {
+      var text = await file.text();
+      var rows = window.StuckOrders.parseCsv(text);
+      var kwText = document.getElementById('keywords').value;
+      var keywords = kwText.split(',').map(function (s) { return s.trim(); }).filter(Boolean);
+      var options = { days: Number(document.getElementById('days').value), preorderKeywords: keywords };
+      var nowVal = document.getElementById('now').value.trim();
+      if (nowVal) options.now = nowVal;
+      var result = window.StuckOrders.detect(rows, options);
+      var csvRows = result.exceptions.map(function (e) {
+        var copy = Object.assign({}, e); copy.priority_score = Number(e.priority_score.toFixed(2)); return copy;
+      });
+      lastCsv = window.StuckOrders.toCsv(HEADERS, csvRows);
+      lastReport = window.StuckOrders.summaryMarkdown(result, file.name);
+      document.getElementById('summaryLine').textContent = 'Orders scanned: ' + result.orders.length + ' | Exceptions found: ' + result.exceptions.length;
+      var tbody = document.getElementById('rows'); tbody.innerHTML = '';
+      result.exceptions.forEach(function (e) {
+        var tr = document.createElement('tr');
+        [e.order_id, e.exception_type, e.age_days, e.total, Number(e.priority_score.toFixed(2)), e.detail].forEach(function (v) {
+          var td = document.createElement('td'); td.textContent = String(v); tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
+      });
+      document.getElementById('report').textContent = lastReport;
+      results.classList.remove('hidden');
+      status.textContent = 'Done. Download exceptions.csv and report.md below.';
+    } catch (err) {
+      status.className = 'error'; status.textContent = err.message;
+    }
+  });
+})();
+</script>
 </body>
 </html>
