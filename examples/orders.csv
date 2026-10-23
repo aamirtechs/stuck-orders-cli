@@ -1,0 +1,10 @@
+Name,Created at,Financial Status,Fulfillment Status,Total,Tags,Note,Lineitem name,Lineitem quantity,Lineitem fulfillment status,Fulfillment Tracking Number
+#1001,2026-10-01 09:15:00,paid,unfulfilled,120.00,,,Blue Widget,2,unfulfilled,
+#1002,2026-10-05 11:00:00,paid,partial,85.50,,,Red Gadget,3,fulfilled,
+#1002,2026-10-05 11:00:00,paid,partial,85.50,,,Red Gadget Case,1,unfulfilled,
+#1003,2026-10-10 14:30:00,paid,fulfilled,42.00,,,Green Cable,1,fulfilled,
+#1004,2026-10-02 08:00:00,paid,unfulfilled,210.00,on-hold,Fraud review hold,Black Headphones,1,unfulfilled,
+#1005,2026-09-20 10:00:00,paid,unfulfilled,300.00,preorder,Preorder item ships in November,Future Console,1,unfulfilled,
+#1006,2026-10-19 16:45:00,paid,unfulfilled,55.00,,,Yellow Mug,1,unfulfilled,
+#1007,2026-10-08 12:00:00,paid,fulfilled,64.00,,,White Keyboard,1,fulfilled,9400100000000000000000
+#1008,2026-10-03 09:00:00,pending,unfulfilled,19.99,,,Sticker Pack,5,unfulfilled,
